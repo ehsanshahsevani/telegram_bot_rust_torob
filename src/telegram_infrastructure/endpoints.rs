@@ -1,0 +1,484 @@
+use crate::services::models::category::Category;
+use crate::telegram_infrastructure::models::command::Command;
+use crate::telegram_infrastructure::models::state::State;
+use teloxide::dispatching::dialogue::InMemStorage;
+use teloxide::net::Download;
+use teloxide::payloads::SendPhotoSetters;
+use teloxide::prelude::{Dialogue, Message};
+use teloxide::requests::Requester;
+use teloxide::types::InputFile;
+use teloxide::Bot;
+
+type MyDialogue = Dialogue<State, InMemStorage<State>>;
+pub type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
+
+
+/// کاربر اگر ربات را استارت کند اتفاقات این تابع ران میشود
+pub async fn start(bot: Bot, dialogue: MyDialogue, msg: Message, cmd: Command) -> HandlerResult {
+    match cmd {
+        Command::Start => {
+            bot.send_message(
+                msg.chat.id,
+                "سلام! برای ثبت محصول جدید /registerandcreatenewproduct را بفرست.\nهر زمان با /cancel انصراف بده.",
+            )
+                .await?;
+            dialogue.update(State::Start).await?;
+        }
+        Command::RegisterAndCreateNewproduct => {
+            bot.send_message(
+                msg.chat.id,
+                "برای ثبت محصول ابتدا آدرس پنل خود را ارسال کنید",
+            )
+                .await?;
+            dialogue.update(State::ReceiveWebSite).await?;
+        }
+        Command::Cancel => {
+            bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
+                .await?;
+            dialogue.update(State::Start).await?;
+        }
+    }
+    Ok(())
+}
+
+
+///دریافت آدرس پنل کاربر
+pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "لطفا آدرس وب سایت خود را وارد کنید")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let website = text.trim().to_string();
+
+    if website.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "آدرس خالی است؛ لطفاً دوباره ادرس سایت خود را وارد کنید.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    if website.starts_with("http") && website.contains(".mixin.website") == false {
+        bot.send_message(
+            msg.chat.id,
+            "آدرس سایت باید شامل .mixin.website باشد؛ لطفاً دوباره تلاش کنید.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    crate::utilities::site::set_site(website);
+
+    bot.send_message(msg.chat.id, "لطفا نام کاربری خود را وارد کنید").await?;
+
+    dialogue.update(State::ReceiveUserName).await?;
+
+    Ok(())
+}
+
+/// دریافت نام کاربری از کاربر
+pub async fn receive_user_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "نام کاربری خود را وارد کنید")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول، کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let user_name = text.trim().to_string();
+
+    if user_name.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "نام کاربری اجباری است و نمیتواند خالی باشد.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    bot.send_message(msg.chat.id, "لطفا رمز عبور خود را وارد کنید").await?;
+
+    dialogue.update(State::ReceivePassword { user_name: user_name }).await?;
+
+    Ok(())
+}
+
+/// دریافت رمز عبور برای ورود به پنل ادمین ترب
+pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user_name: String) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "رمز عبور خود را وارد کنید")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول، کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let password = text.trim().to_string();
+
+    if password.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "رمز عبور اجباری است و نمیتواند خالی باشد.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    let csrfmiddlewaretoken: String =
+        String::from("lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8");
+
+    let result = crate::services::accounting::login_in_torob
+        (&user_name, &password, crate::utilities::site::site().as_str(), &csrfmiddlewaretoken).await;
+
+    println!("login result = {} with web: {}, user_name: {} & password: {}",
+             result, crate::utilities::site::site(), user_name, password);
+
+    let result_bool = match result {
+        "ok" => true,
+        _ => false,
+    };
+
+    if result_bool == false {
+        bot.send_message(msg.chat.id, "خطا در ورود به سامانه، مجددا تلاش کنید")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
+
+    dialogue.update(State::ReceiveProductName).await?;
+
+    Ok(())
+}
+
+/// دریافت نام محصول در ربات
+pub async fn receive_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "لطفاً نام محصول را به صورت متن بفرستید.")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let name = text.trim().to_string();
+
+    if name.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "نام خالی است؛ لطفاً دوباره نام محصول را وارد کنید.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    bot.send_message(msg.chat.id, "قیمت محصول را وارد کنید (فقط عدد).")
+        .await?;
+
+    dialogue.update(State::ReceivePrice { name }).await?;
+
+    Ok(())
+}
+
+pub async fn receive_price(
+    bot: Bot,
+    dialogue: MyDialogue,
+    msg: Message,
+    name: String,
+) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "لطفاً قیمت را به صورت عدد وارد کنید.")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
+            .await?;
+
+        dialogue.update(State::Start).await?;
+
+        return Ok(());
+    }
+
+    let Some(price) = parse_int(text) else {
+        bot.send_message(
+            msg.chat.id,
+            "قیمت نامعتبر است؛ فقط عدد وارد کنید (مثلاً 250000).",
+        )
+            .await?;
+
+        return Ok(());
+    };
+
+    // ⬇️ گرفتن و نمایش دسته‌بندی‌ها
+    let cats: Vec<Category> =
+        crate::services::category_service::fetch_categories_from_service(
+            "/api/management/v1/categories/?page=1").await?;
+
+    if cats.is_empty() {
+        bot.send_message(msg.chat.id, "هیچ دسته‌ بندی‌ ای یافت نشد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let txt = categories_to_text(&cats);
+
+    // اگر خیلی بلند بود، تلگرام محدودیت 4096 کاراکتر دارد؛
+    // برای سادگی فعلاً یک پیام می‌فرستیم:
+    bot.send_message(msg.chat.id, txt).await?;
+
+    bot.send_message(msg.chat.id, "شناسه‌ی دسته‌بندی موردنظر را ارسال کنید.")
+        .await?;
+
+    dialogue
+        .update(State::ReceiveCategoryId { name, price })
+        .await?;
+
+    Ok(())
+}
+
+// کمک‌تابع: پارس عدد صحیح (اجازه‌ی ویرگول/فاصله می‌دهد)
+pub fn parse_int(s: &str) -> Option<i64> {
+    let cleaned: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+    if cleaned.is_empty() {
+        None
+    } else {
+        cleaned.parse::<i64>().ok()
+    }
+}
+
+pub fn parse_u64(s: &str) -> Option<u64> {
+    let cleaned: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+    if cleaned.is_empty() {
+        None
+    } else {
+        cleaned.parse::<u64>().ok()
+    }
+}
+
+/// لیست را به متن ساده تبدیل می‌کند
+pub fn categories_to_text(cats: &[Category]) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    lines.push("لطفاً شناسه‌ی دسته‌بندی را وارد کنید:\n".into());
+    for c in cats {
+        let parent = c
+            .parent
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| "Root".into());
+        let av = if c.available { "✅" } else { "⛔️" };
+        lines.push(format!(
+            "{}  {:>4} — {}  (parent: {})",
+            av, c.id, c.name, parent
+        ));
+    }
+    lines.join("\n")
+}
+
+pub fn to_u64(n: i64) -> Option<u64> {
+    if n >= 0 { Some(n as u64) } else { None }
+}
+
+/// دریافت شناسه دسته بندی در ربات
+pub async fn receive_category_id(
+    bot: Bot,
+    dialogue: MyDialogue,
+    msg: Message,
+    name_price: (String, i64),
+) -> HandlerResult {
+    let (name, price) = name_price;
+
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "شناسه‌ی دسته‌بندی را به صورت عدد وارد کنید.")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let Some(cat_id) = text.trim().parse::<u64>().ok() else {
+        bot.send_message(msg.chat.id, "شناسه نامعتبر است؛ فقط عدد بفرستید.")
+            .await?;
+        return Ok(());
+    };
+
+    // گرفتن تازه‌ترین لیست دسته‌بندی‌ها (یا اگر کش داری، از همان استفاده کن)
+    let cats: Vec<Category> =
+        match crate::services::category_service::fetch_categories_from_service(
+            "/api/management/v1/categories/?page=1").await {
+            Ok(v) => v,
+            Err(e) => {
+                bot.send_message(msg.chat.id, format!("خطا در دریافت دسته‌بندی‌ها: {e}"))
+                    .await?;
+                dialogue.update(State::Start).await?;
+                return Ok(());
+            }
+        };
+
+    let Some(cat) = cats.iter().find(|c| c.id == cat_id) else {
+        bot.send_message(
+            msg.chat.id,
+            "چنین شناسه‌ای در دسته‌بندی‌ها وجود ندارد؛ دوباره تلاش کنید.",
+        )
+            .await?;
+        return Ok(());
+    };
+
+    if cat.available == false {
+        bot.send_message(
+            msg.chat.id,
+            "این دسته‌بندی فعال نیست؛ شناسه‌ی دیگری انتخاب کنید.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    // آماده‌سازی مدل ایجاد محصول با کمترین داده
+    let price_u64 = match to_u64(price) {
+        Some(v) => v,
+        None => {
+            bot.send_message(msg.chat.id, "قیمت منفی معتبر نیست؛ فرایند متوقف شد.")
+                .await?;
+            dialogue.update(State::Start).await?;
+            return Ok(());
+        }
+    };
+
+    let mut product =
+        crate::services::models::product::ProductCreate::new(name.clone(), cat.id);
+    // اگر نوع فیلدها در ProductCreate، i64 است، همین دو خط را به Some(price) / Some(stock) تغییر بده.
+    product.price = Some(price_u64);
+    // product.stock = Some(stock_u64);
+
+    // فراخوانی سرویس ایجاد محصول
+    let product_id =
+        match crate::services::product_service::create_product
+        (&product).await {
+        Ok(id) => id,
+        Err(e) => {
+            bot.send_message(msg.chat.id, format!("❌ خطا در ایجاد محصول: {e}"))
+                .await?;
+            dialogue.update(State::Start).await?;
+            return Ok(());
+        }
+    };
+
+    let summary = format!(
+        "✅ محصول با موفقیت ایجاد شد.\n\
+         ─────────────────────\n\
+         نام: {}\n\
+         قیمت: {}\n\
+         دسته‌بندی: {} (id: {})\n\
+         🆔 شناسه محصول: {}\
+         \n برای ثبت محصول بعدی روی /start  کلیک کنید",
+        name, price, cat.name, cat.id, product_id
+    );
+
+    bot.send_message(msg.chat.id, summary).await?;
+
+    // پیام نهایی به کاربر
+    let summary = format!("تصویر مربوط به این محصول را آپلود کنید");
+
+    bot.send_message(msg.chat.id, summary).await?;
+
+    dialogue
+        .update(State::ReceiveProductImage {
+            name,
+            price,
+            category_id: cat.id,
+            category_name: cat.name.clone(),
+            product_id,
+        })
+        .await?;
+
+    Ok(())
+}
+
+/// دریافت تصویر پروفایل در ربات
+pub async fn receive_product_image(
+    bot: Bot,
+    dialogue: MyDialogue,
+    msg: Message,
+    payload: (String, i64, u64, String, u64), // ← تاپل تخت مطابق Available types
+) -> HandlerResult {
+    let (name, price, category_id, category_name, product_id) = payload;
+
+    // بررسی اینکه آیا پیام حاوی تصویر است
+    let Some(photo) = msg.photo() else {
+        bot.send_message(msg.chat.id, "لطفاً یک تصویر ارسال کنید.")
+            .await?;
+        return Ok(());
+    };
+
+    let largest_photo = photo.iter().last().unwrap();
+    let file_id = largest_photo.file.id.clone();
+    let file = bot.get_file(&file_id).await?;
+    let file_path = file.path;
+
+    // ارسال تصویر به مقصد (سایت)
+    // دانلود بایت‌ها از تلگرام
+    let mut bytes: Vec<u8> = Vec::new();
+    bot.download_file(&file_path, &mut bytes).await?;
+
+    // یک نام فایل مناسب (از انتهای مسیر تلگرام)
+    let filename = file_path.rsplit('/').next().unwrap_or("image.jpg");
+
+    // آپلود به بک‌اند
+    crate::services::product_image_service::upload_product_image_file
+        (product_id, filename, bytes).await?;
+
+    // پیام نهایی به کاربر
+    let summary = format!(
+        "✅ محصول با موفقیت ایجاد شد.\n\
+         ─────────────────────\n\
+         نام: {}\n\
+         قیمت: {}\n\
+         دسته‌بندی: {} (id: {})\n\
+         🆔 شناسه محصول: {}\
+         \n برای ثبت محصول بعدی روی /start  کلیک کنید",
+        name, price, category_name, category_id, product_id
+    );
+
+    let caption = summary;
+
+    bot.send_photo(msg.chat.id, InputFile::file_id(file_id.clone()))
+        .caption(caption)
+        .await?;
+
+    // پایان جریان
+    dialogue.update(State::Start).await?;
+    Ok(())
+}
