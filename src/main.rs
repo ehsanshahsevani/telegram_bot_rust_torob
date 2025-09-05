@@ -252,6 +252,8 @@ fn current_csrftoken() -> Option<String> {
     })
 }
 
+/// ==========================================================
+/// ==========================================================
 /// فقط یک‌بار مقداردهی می‌شود و بعداً از همه‌جا قابل دسترسی است
 static SESSION: once_cell::sync::OnceCell<SessionState> = once_cell::sync::OnceCell::new();
 
@@ -259,6 +261,8 @@ static SESSION: once_cell::sync::OnceCell<SessionState> = once_cell::sync::OnceC
 pub fn session() -> Option<&'static SessionState> {
     SESSION.get()
 }
+/// ==========================================================
+/// ==========================================================
 
 /// مدیریت آدرس اصلی سایت برای کاربر
 /// ==========================================================
@@ -282,13 +286,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // let user_name: String = String::from("admin");
     // let password: String = String::from("CiP6Ds9oby");
-
+    //
     // let csrfmiddlewaretoken: String =
     //     String::from("lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8");
-
+    //
     // let origin = "https://np.mixin.website";
     // set_site(origin);
-
+    //
     // let result = login_in_torob(&user_name, &password, site(), &csrfmiddlewaretoken).await;
     // println!("login result = {}", result);
 
