@@ -260,32 +260,37 @@ pub fn session() -> Option<&'static SessionState> {
     SESSION.get()
 }
 
+/// مدیریت آدرس اصلی سایت برای کاربر
+/// ==========================================================
+/// ==========================================================
+pub static SITE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// فقط یک‌بار در شروع برنامه صدا بزنید
+pub fn set_site<S: Into<String>>(s: S) {
+    SITE.set(s.into()).expect("SITE already set");
+}
+
+/// خواندن امن از هر جا
+pub fn site() -> &'static str {
+    SITE.get().expect("SITE not set").as_str()
+}
+/// ==========================================================
+/// ==========================================================
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// (1)
-    /// TODO user data - read only - contatnt
-    /// user name , password, ...
-    let user_name: String = String::from("admin");
 
-    let password: String = String::from("CiP6Ds9oby");
+    // let user_name: String = String::from("admin");
+    // let password: String = String::from("CiP6Ds9oby");
 
-    let csrfmiddlewaretoken: String =
-        String::from("lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8");
+    // let csrfmiddlewaretoken: String =
+    //     String::from("lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8");
 
-    // (2)
-    // TODO login in torob and get token in this local
-    let result = login_in_torob(&user_name, &password, &csrfmiddlewaretoken).await;
+    // let origin = "https://np.mixin.website";
+    // set_site(origin);
 
-    println!("login result = {}", result);
-
-    // (2.5)
-    // TODO print categories
-    // let cats =
-    //     fetch_categories_from_service("/api/management/v1/categories/?page=1").await?;
-
-    // for cat in cats {
-    //     println!("{:?}", cat);
-    // }
+    // let result = login_in_torob(&user_name, &password, site(), &csrfmiddlewaretoken).await;
+    // println!("login result = {}", result);
 
     // (3)
     let bot_token: String = String::from("8358109688:AAE0QOX-s23RxHAr6cpJSWEb76TREPpoF8c");
@@ -297,12 +302,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("bot failed: {e}");
         }
     });
-
-    // (4) ادامهٔ منطق برنامه؛ اینجا هنوز token_bot داریم (چون clone دادیم)
-    // (3) فقط فیلدهای اجباری: name و main_category
-    // let prod: ProductCreate = ProductCreate::new("محصول تستی", 1);
-    // let new_id: u64 = create_product(&prod).await?;
-    // println!("✅ product created with id = {new_id}");
 
     // برنامه را زنده نگه‌دار تا Ctrl+C
     tokio::signal::ctrl_c().await?;
@@ -317,13 +316,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn login_in_torob(
     user_name: &String,
     password: &String,
+    origin: &str,
     csrfmiddlewaretoken: &String,
 ) -> &'static str {
     use reqwest::header::{ORIGIN, REFERER, USER_AGENT};
 
-    let base = reqwest::Url::parse("https://np.mixin.website").unwrap();
-    let url = "https://np.mixin.website/admin/login/?next=/admin/";
-    let origin = "https://np.mixin.website";
+    // let origin = "https://np.mixin.website";
+    let base = reqwest::Url::parse(&origin).unwrap();
+    let url = format!("{}/admin/login/?next=/admin/", &origin);
 
     let jar = std::sync::Arc::new(reqwest::cookie::Jar::default());
     let client = match reqwest::Client::builder()
@@ -335,7 +335,7 @@ pub async fn login_in_torob(
     };
 
     // GET اولیه
-    let get_resp = match client.get(url).header(USER_AGENT, "reqwest").send().await {
+    let get_resp = match client.get(&url).header(USER_AGENT, "reqwest").send().await {
         Ok(r) => r,
         Err(_) => return "pre_get_error",
     };
@@ -361,7 +361,7 @@ pub async fn login_in_torob(
 
     // POST لاگین
     let resp = client
-        .post(url)
+        .post(&url)
         .header(REFERER, url)
         .header(ORIGIN, origin)
         .header(USER_AGENT, "reqwest")
@@ -439,12 +439,12 @@ pub async fn fetch_categories_from_service(
             "no session; call login_in_torob first",
         )
     })?;
-    const BASE: &str = "https://np.mixin.website";
+    let base = site();
 
     let mut next_url: String = if start_path_or_url.starts_with("http") {
         start_path_or_url.to_string()
     } else {
-        format!("{BASE}{start_path_or_url}")
+        format!("{base}{start_path_or_url}")
     };
 
     let mut out: Vec<Category> = Vec::new();
@@ -466,7 +466,7 @@ pub async fn fetch_categories_from_service(
             .unwrap_or_default();
 
         let text = resp.text().await?;
-        if !ct.contains("application/json")
+        if ct.contains("application/json") == false
             && !text.trim_start().starts_with('{')
             && !text.trim_start().starts_with('[')
         {
@@ -518,7 +518,7 @@ pub async fn fetch_categories_from_service(
                 next_url = if nv.starts_with("http") {
                     nv.to_string()
                 } else {
-                    format!("{BASE}{nv}")
+                    format!("{base}{nv}")
                 };
                 continue;
             }
@@ -608,20 +608,32 @@ pub async fn upload_product_image_file(
     use reqwest::header::{ACCEPT, ORIGIN, REFERER, USER_AGENT};
     use std::io;
 
-    let s = session().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no session; call login_in_torob first"))?;
-    let csrf = current_csrftoken().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no csrftoken in jar; login first"))?;
+    let s = session().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            "no session; call login_in_torob first",
+        )
+    })?;
+    let csrf = current_csrftoken()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no csrftoken in jar; login first"))?;
 
     // POST /api/management/v1/products/{pk}/images/
-    let endpoint = s.base.join(&format!("/api/management/v1/products/{}/images/", product_id))?.to_string();
-    let referer  = s.base.join("/admin/")?.to_string();
-    let origin   = s.base.as_str().trim_end_matches('/').to_string();
+    let endpoint = s
+        .base
+        .join(&format!(
+            "/api/management/v1/products/{}/images/",
+            product_id
+        ))?
+        .to_string();
+    let referer = s.base.join("/admin/")?.to_string();
+    let origin = s.base.as_str().trim_end_matches('/').to_string();
 
     // حدس ساده MIME از پسوند فایل (اختیاری اما مفید)
     let mime = match filename.to_ascii_lowercase().rsplit('.').next() {
-        Some("png")  => "image/png",
+        Some("png") => "image/png",
         Some("webp") => "image/webp",
-        Some("gif")  => "image/gif",
-        _            => "image/jpeg",
+        Some("gif") => "image/gif",
+        _ => "image/jpeg",
     };
 
     // فقط فیلد اجباری `image`
@@ -631,7 +643,8 @@ pub async fn upload_product_image_file(
 
     let form = Form::new().part("image", image_part);
 
-    let resp = s.client
+    let resp = s
+        .client
         .post(&endpoint)
         .header(ACCEPT, "application/json")
         .header(REFERER, &referer)
@@ -643,26 +656,38 @@ pub async fn upload_product_image_file(
         .await?;
 
     let status = resp.status();
-    let body   = resp.text().await?;
+    let body = resp.text().await?;
 
     if !status.is_success() {
         let preview: String = body.chars().take(400).collect();
-        return Err(io::Error::new(io::ErrorKind::Other, format!("image upload failed: {} • {}", status, preview)).into());
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("image upload failed: {} • {}", status, preview),
+        )
+        .into());
     }
 
     // نمونهٔ پاسخ: { "success": true, "id": 2 }
     #[derive(serde::Deserialize)]
-    struct Resp { id: Option<u64> }
+    struct Resp {
+        id: Option<u64>,
+    }
 
     if let Ok(r) = serde_json::from_str::<Resp>(&body) {
-        if let Some(id) = r.id { return Ok(id); }
+        if let Some(id) = r.id {
+            return Ok(id);
+        }
     }
     let v: serde_json::Value = serde_json::from_str(&body)?;
     if let Some(id) = v.get("id").and_then(|x| x.as_u64()) {
         return Ok(id);
     }
 
-    Err(io::Error::new(io::ErrorKind::Other, format!("image uploaded but could not extract id. body: {}", body)).into())
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        format!("image uploaded but could not extract id. body: {}", body),
+    )
+    .into())
 }
 
 /// ====== دستورات بات ======
@@ -674,7 +699,7 @@ enum Command {
     Start,
     /// ساخت محصول جدید
     #[command(description = "ثبت محصول جدید")]
-    Newproduct,
+    RegisterAndCreateNewproduct,
     /// انصراف از فرایند جاری
     #[command(description = "انصراف")]
     Cancel,
@@ -686,14 +711,25 @@ enum State {
     /// استارت اولیه توسط کاربر - نمایش دستورات
     Start,
 
+    ReceiveWebSite,
+    ReceiveUserName,
+    ReceivePassword {
+        user_name: String,
+    },
+
     /// منتظر دریافت نام محصول
     ReceiveProductName,
 
     /// منتظر دریافت قیمت
-    ReceivePrice { name: String },
+    ReceivePrice {
+        name: String,
+    },
 
     /// منتظر دریافت شناسه دسته‌بندی
-    ReceiveCategoryId { name: String, price: i64 },
+    ReceiveCategoryId {
+        name: String,
+        price: i64,
+    },
 
     /// منتظر دریافت تصویر محصول
     ReceiveProductImage {
@@ -731,6 +767,9 @@ pub async fn create_bot(token: String) -> HandlerResult {
                 dptree::case![State::Start]
                     .branch(dptree::entry().filter_command::<Command>().endpoint(start)),
             )
+            .branch(dptree::case![State::ReceiveWebSite].endpoint(receive_website))
+            .branch(dptree::case![State::ReceiveUserName].endpoint(receive_user_name))
+            .branch(dptree::case![State::ReceivePassword { user_name }].endpoint(receive_password))
             .branch(dptree::case![State::ReceiveProductName].endpoint(receive_name))
             .branch(dptree::case![State::ReceivePrice { name }].endpoint(receive_price))
             .branch(
@@ -738,9 +777,15 @@ pub async fn create_bot(token: String) -> HandlerResult {
                     .endpoint(receive_category_id),
             )
             .branch(
-                dptree::case![State::ReceiveProductImage { name, price, category_id, category_name, product_id }]
-                    .endpoint(receive_product_image)
-            )
+                dptree::case![State::ReceiveProductImage {
+                    name,
+                    price,
+                    category_id,
+                    category_name,
+                    product_id
+                }]
+                .endpoint(receive_product_image),
+            ),
     )
     .dependencies(dptree::deps![InMemStorage::<State>::new()])
     .enable_ctrlc_handler()
@@ -757,15 +802,18 @@ async fn start(bot: Bot, dialogue: MyDialogue, msg: Message, cmd: Command) -> Ha
         Command::Start => {
             bot.send_message(
                 msg.chat.id,
-                "سلام! برای ثبت محصول جدید /newproduct را بفرست.\nهر زمان با /cancel انصراف بده.",
+                "سلام! برای ثبت محصول جدید /registerandcreatenewproduct را بفرست.\nهر زمان با /cancel انصراف بده.",
             )
             .await?;
             dialogue.update(State::Start).await?;
         }
-        Command::Newproduct => {
-            bot.send_message(msg.chat.id, "نام محصول را وارد کنید")
-                .await?;
-            dialogue.update(State::ReceiveProductName).await?;
+        Command::RegisterAndCreateNewproduct => {
+            bot.send_message(
+                msg.chat.id,
+                "برای ثبت محصول ابتدا آدرس پنل خود را ارسال کنید",
+            )
+            .await?;
+            dialogue.update(State::ReceiveWebSite).await?;
         }
         Command::Cancel => {
             bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
@@ -784,6 +832,135 @@ fn parse_int(s: &str) -> Option<i64> {
     } else {
         cleaned.parse::<i64>().ok()
     }
+}
+
+///دریافت آدرس پنل کاربر
+async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "لطفا آدرس وب سایت خود را وارد کنید")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let website = text.trim().to_string();
+
+    if website.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "آدرس خالی است؛ لطفاً دوباره ادرس سایت خود را وارد کنید.",
+        )
+        .await?;
+        return Ok(());
+    }
+
+    if website.starts_with("http") && website.contains(".mixin.website") == false {
+        bot.send_message(
+            msg.chat.id,
+            "آدرس سایت باید شامل .mixin.website باشد؛ لطفاً دوباره تلاش کنید.",
+        )
+        .await?;
+        return Ok(());
+    }
+
+    set_site(website);
+
+    bot.send_message(msg.chat.id, "لطفا نام کاربری خود را وارد کنید").await?;
+
+    dialogue.update(State::ReceiveUserName).await?;
+
+    Ok(())
+}
+
+/// دریافت نام کاربری از کاربر
+async fn receive_user_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "نام کاربری خود را وارد کنید")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول، کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let user_name = text.trim().to_string();
+
+    if user_name.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "نام کاربری اجباری است و نمیتواند خالی باشد.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    bot.send_message(msg.chat.id, "لطفا رمز عبور خود را وارد کنید").await?;
+
+    dialogue.update(State::ReceivePassword { user_name: user_name }).await?;
+
+    Ok(())
+}
+
+/// دریافت رمز عبور برای ورود به پنل ادمین ترب
+async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user_name: String) -> HandlerResult {
+    let Some(text) = msg.text() else {
+        bot.send_message(msg.chat.id, "رمز عبور خود را وارد کنید")
+            .await?;
+        return Ok(());
+    };
+
+    if text.trim().eq_ignore_ascii_case("/cancel") {
+        bot.send_message(msg.chat.id, "روند ایجاد محصول، کنسل شد.")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    let password = text.trim().to_string();
+
+    if password.is_empty() {
+        bot.send_message(
+            msg.chat.id,
+            "رمز عبور اجباری است و نمیتواند خالی باشد.",
+        )
+            .await?;
+        return Ok(());
+    }
+
+    let csrfmiddlewaretoken: String =
+        String::from("lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8");
+
+    let result = login_in_torob(&user_name, &password, site(), &csrfmiddlewaretoken).await;
+    
+    println!("login result = {} with web: {}, user_name: {} & password: {}", result, site(), user_name, password);
+
+    let result_bool = match result {
+        "ok" => true,
+        _ => false,
+    };
+
+    if result_bool == false {
+        bot.send_message(msg.chat.id, "خطا در ورود به سامانه، مجددا تلاش کنید")
+            .await?;
+        dialogue.update(State::Start).await?;
+        return Ok(());
+    }
+
+    bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
+
+    dialogue.update(State::ReceiveProductName).await?;
+
+    Ok(())
 }
 
 /// دریافت نام محصول در ربات
@@ -856,7 +1033,7 @@ async fn receive_price(
         fetch_categories_from_service("/api/management/v1/categories/?page=1").await?;
 
     if cats.is_empty() {
-        bot.send_message(msg.chat.id, "هیچ دسته‌بندی‌ای یافت نشد.")
+        bot.send_message(msg.chat.id, "هیچ دسته‌ بندی‌ ای یافت نشد.")
             .await?;
         dialogue.update(State::Start).await?;
         return Ok(());
@@ -1026,9 +1203,9 @@ async fn receive_category_id(
 }
 
 use reqwest::Client;
-use teloxide::types::{InputFile, PhotoSize}; // برای ارسال به سایت مقصد
-use teloxide::payloads::SendPhotoSetters;
 use teloxide::net::Download;
+use teloxide::payloads::SendPhotoSetters;
+use teloxide::types::{InputFile, PhotoSize}; // برای ارسال به سایت مقصد
 
 /// دریافت تصویر پروفایل در ربات
 async fn receive_product_image(
@@ -1057,8 +1234,7 @@ async fn receive_product_image(
     bot.download_file(&file_path, &mut bytes).await?;
 
     // یک نام فایل مناسب (از انتهای مسیر تلگرام)
-    let filename =
-        file_path.rsplit('/').next().unwrap_or("image.jpg");
+    let filename = file_path.rsplit('/').next().unwrap_or("image.jpg");
 
     // آپلود به بک‌اند
     upload_product_image_file(product_id, filename, bytes).await?;
