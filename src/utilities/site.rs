@@ -1,4 +1,4 @@
-use std::sync::{RwLock, OnceLock};
+use std::sync::{RwLock, OnceLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// مدیریت آدرس اصلی سایت برای کاربر
 pub static SITE: OnceLock<RwLock<String>> = OnceLock::new();
@@ -10,12 +10,16 @@ fn get_lock() -> &'static RwLock<String> {
 
 /// تنظیم مقدار (هر بار قابل تغییر است)
 pub fn set_site<S: Into<String>>(s: S) {
-    let mut w = get_lock().write().expect("SITE lock poisoned");
+    let mut w: RwLockWriteGuard<String> =
+        get_lock().write().expect("SITE lock poisoned");
+
     *w = s.into();
 }
 
 /// خواندن مقدار از هر جا
 pub fn site() -> String {
-    let r = get_lock().read().expect("SITE lock poisoned");
+    let r: RwLockReadGuard<String> =
+        get_lock().read().expect("SITE lock poisoned");
+    
     r.clone()
 }

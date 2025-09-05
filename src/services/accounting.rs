@@ -1,3 +1,5 @@
+use crate::utilities::session::set_session_multi;
+
 /// روند لاگین در ترب و ذخیره سشن های مربوط به کار با سرویس های ترب
 pub async fn login_in_torob(
     user_name: &String,
@@ -64,12 +66,14 @@ pub async fn login_in_torob(
         Ok(r) => r,
         Err(_) => return "request_error",
     };
-    if !(r.status().is_success() || r.status().is_redirection()) {
+    if (r.status().is_success() || r.status().is_redirection()) == false {
         return "http_error";
     }
 
-    let _ = crate::utilities::session::SESSION
-        .set(crate::utilities::session::SessionState { client, jar, base });
+    set_session_multi(crate::utilities::session::SessionState { client, jar, base });
+
+    // let _ = crate::utilities::session::SESSION
+    //     .set(crate::utilities::session::SessionState { client, jar, base });
 
     "ok"
 }

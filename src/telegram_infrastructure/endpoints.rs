@@ -188,7 +188,7 @@ pub async fn receive_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
         return Ok(());
     }
 
-    let name = text.trim().to_string();
+    let name: String = text.trim().to_string();
 
     if name.is_empty() {
         bot.send_message(
@@ -240,8 +240,15 @@ pub async fn receive_price(
 
     // ⬇️ گرفتن و نمایش دسته‌بندی‌ها
     let cats: Vec<Category> =
-        crate::services::category_service::fetch_categories_from_service(
-            "/api/management/v1/categories/?page=1").await?;
+        match crate::services::category_service::fetch_categories_from_service(
+            "/api/management/v1/categories/?page=1").await {
+            Ok(cats) => cats,
+            Err(err) => {
+                bot.send_message(msg.chat.id, err.to_string()).await?;
+                eprintln!("error in fetching categories: {}", err.to_string());
+                return Err(err.into())
+            },
+        };
 
     if cats.is_empty() {
         bot.send_message(msg.chat.id, "هیچ دسته‌ بندی‌ ای یافت نشد.")

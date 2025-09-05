@@ -11,7 +11,7 @@ pub async fn fetch_categories_from_service(
         crate::utilities::session::session().ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::Other,
-            "no session; call login_in_torob first",
+            "no session; call login first",
         )
     })?;
 
