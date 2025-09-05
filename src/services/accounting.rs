@@ -8,8 +8,7 @@ pub async fn login_in_torob(
     csrfmiddlewaretoken: &String,
 ) -> &'static str {
     use reqwest::header::{ORIGIN, REFERER, USER_AGENT};
-
-    // let origin = "https://np.mixin.website";
+    
     let base = reqwest::Url::parse(&origin).unwrap();
     let url = format!("{}/admin/login/?next=/admin/", &origin);
 
@@ -39,7 +38,7 @@ pub async fn login_in_torob(
             if let Some(pos) = s.find("csrftoken=") {
                 let rest = &s[pos + "csrftoken=".len()..];
                 let token = rest.split(';').next().unwrap_or("").to_string();
-                if !token.is_empty() {
+                if token.is_empty() == false {
                     csrf_to_send = token;
                     break;
                 }
@@ -71,9 +70,6 @@ pub async fn login_in_torob(
     }
 
     set_session_multi(crate::utilities::session::SessionState { client, jar, base });
-
-    // let _ = crate::utilities::session::SESSION
-    //     .set(crate::utilities::session::SessionState { client, jar, base });
-
+    
     "ok"
 }
