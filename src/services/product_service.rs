@@ -1,14 +1,14 @@
 pub async fn create_product(
-    product: &crate::services::models::product::ProductCreate,
+    product: &crate::services::models::product::ProductCreate, chat_id: String,
 ) -> Result<u64, Box<dyn std::error::Error + Send + Sync + 'static>> {
     use reqwest::header::{ACCEPT, CONTENT_TYPE, CONTENT_TYPE as CT, ORIGIN, REFERER, USER_AGENT};
 
     let s =
-        crate::utilities::session::session()
+        crate::utilities::session::session_by_chat(chat_id.clone())
             .ok_or("no session; call login_in_torob first")?;
 
     let csrf =
-        crate::utilities::session::current_csrftoken()
+        crate::utilities::session::current_csrftoken(Some(chat_id.to_string()))
             .ok_or("no csrftoken in jar; login first")?;
 
     let endpoint = s.base.join("/api/management/v1/products/")?.to_string();

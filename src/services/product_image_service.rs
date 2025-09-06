@@ -3,6 +3,7 @@ use reqwest::multipart::{Form, Part};
 /// آپلود تصویر محصول (فقط فیلد اجباری `image`)
 /// برمی‌گرداند: شناسهٔ تصویر (image_id)
 pub async fn upload_product_image_file(
+    chat_id: String,
     product_id: u64,
     filename: &str,
     image_bytes: Vec<u8>,
@@ -10,13 +11,13 @@ pub async fn upload_product_image_file(
     use reqwest::header::{ACCEPT, ORIGIN, REFERER, USER_AGENT};
     use std::io;
 
-    let s = crate::utilities::session::session().ok_or_else(|| {
+    let s = crate::utilities::session::session_by_chat(chat_id.clone()).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::Other,
             "no session; call login_in_torob first",
         )
     })?;
-    let csrf = crate::utilities::session::current_csrftoken()
+    let csrf = crate::utilities::session::current_csrftoken(Some(chat_id.to_string()))
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no csrftoken in jar; login first"))?;
 
     // POST /api/management/v1/products/{pk}/images/

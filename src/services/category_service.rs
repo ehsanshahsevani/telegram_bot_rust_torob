@@ -5,17 +5,19 @@ use crate::services::models::category::Category;
 /// همهٔ صفحات را می‌خواند و فقط لیست Category برمی‌گرداند؛
 pub async fn fetch_categories_from_service(
     start_path_or_url: &str,
+    chat_id: String,
 ) -> Result<Vec<Category>, Box<dyn serde::ser::StdError + Send + Sync + 'static>> {
     // این خط باید خطای Send+Sync بسازد:
     let s =
-        crate::utilities::session::session().ok_or_else(|| {
+        crate::utilities::session::session_by_chat(chat_id.clone()).ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::Other,
             "no session; call login first",
         )
     })?;
 
-    let base = crate::utilities::site::site();
+    let base =
+        crate::utilities::site::get_site(chat_id).unwrap();
 
     let mut next_url: String = if start_path_or_url.starts_with("http") {
         start_path_or_url.to_string()

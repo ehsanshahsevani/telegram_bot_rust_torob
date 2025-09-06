@@ -4,7 +4,7 @@ use crate::telegram_infrastructure::models::state::State;
 use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::net::Download;
 use teloxide::payloads::SendPhotoSetters;
-use teloxide::prelude::{Dialogue, Message};
+use teloxide::prelude::{ChatId, Dialogue, Message};
 use teloxide::requests::Requester;
 use teloxide::types::InputFile;
 use teloxide::Bot;
@@ -72,12 +72,14 @@ pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> Ha
         bot.send_message(
             msg.chat.id,
             "آدرس سایت باید شامل .mixin.website باشد؛ لطفاً دوباره تلاش کنید.",
-        )
-            .await?;
+        ).await?;
+
         return Ok(());
     }
 
-    crate::utilities::site::set_site(website);
+    let chat_id_telegram: ChatId = msg.chat.id;
+
+    crate::utilities::site::set_site(chat_id_telegram.0.to_string(), website);
 
     bot.send_message(msg.chat.id, "لطفا نام کاربری خود را وارد کنید").await?;
 
@@ -145,30 +147,46 @@ pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user
         return Ok(());
     }
 
+    let chat_id_telegram = msg.chat.id.0.to_string();
+
+    println!("chat_id_telegram = {}", chat_id_telegram);
+
     let csrfmiddlewaretoken: String =
         String::from("lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8");
 
-    let result = crate::services::accounting::login_in_torob
-        (&user_name, &password, crate::utilities::site::site().as_str(), &csrfmiddlewaretoken).await;
+    let search_value_by_key =
+        crate::utilities::site::get_site(&chat_id_telegram);
 
-    println!("login result = {} with web: {}, user_name: {} & password: {}",
-             result, crate::utilities::site::site(), user_name, password);
+    match &search_value_by_key {
+        Some(value) => {
+            let result = crate::services::accounting::login_in_torob
+                (chat_id_telegram, &user_name, &password, value.as_str(), &csrfmiddlewaretoken).await;
 
-    let result_bool = match result {
-        "ok" => true,
-        _ => false,
-    };
+            println!("login result = {} with web: {}, user_name: {} & password: {}",
+                     result, value, user_name, password);
 
-    if result_bool == false {
-        bot.send_message(msg.chat.id, "خطا در ورود به سامانه، مجددا تلاش کنید")
-            .await?;
-        dialogue.update(State::Start).await?;
-        return Ok(());
+            let result_bool = match result {
+                "ok" => true,
+                _ => false,
+            };
+
+            if result_bool == false {
+                bot.send_message(msg.chat.id, "خطا در ورود به سامانه، لطفا از اول آدرس دقیق سامانه خود و همینطور نام کاربری و رمز عبور خود را مجددا ارسال کنید").await?;
+                dialogue.update(State::Start).await?;
+                return Ok(());
+            }
+
+            bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
+
+            dialogue.update(State::ReceiveProductName).await?;
+        },
+        None => {
+            println!("web site value for this chat id {}, not found.", chat_id_telegram);
+            bot.send_message(msg.chat.id, "آدرس سایت شما یافت نشد لطفا آدرس سایت خود را وارد کنید").await?;
+            dialogue.update(State::Start).await?;
+            return Ok(());
+        }
     }
-
-    bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
-
-    dialogue.update(State::ReceiveProductName).await?;
 
     Ok(())
 }
@@ -238,10 +256,12 @@ pub async fn receive_price(
         return Ok(());
     };
 
+    let chat_id = msg.chat.id.0.to_string();
+
     // ⬇️ گرفتن و نمایش دسته‌بندی‌ها
     let cats: Vec<Category> =
         match crate::services::category_service::fetch_categories_from_service(
-            "/api/management/v1/categories/?page=1").await {
+            "/api/management/v1/categories/?page=1", chat_id).await {
             Ok(cats) => cats,
             Err(err) => {
                 bot.send_message(msg.chat.id, err.to_string()).await?;
@@ -342,10 +362,12 @@ pub async fn receive_category_id(
         return Ok(());
     };
 
+    let chat_id: String = msg.chat.id.0.to_string();
+
     // گرفتن تازه‌ترین لیست دسته‌بندی‌ها (یا اگر کش داری، از همان استفاده کن)
     let cats: Vec<Category> =
         match crate::services::category_service::fetch_categories_from_service(
-            "/api/management/v1/categories/?page=1").await {
+            "/api/management/v1/categories/?page=1", chat_id).await {
             Ok(v) => v,
             Err(e) => {
                 bot.send_message(msg.chat.id, format!("خطا در دریافت دسته‌بندی‌ها: {e}"))
@@ -390,10 +412,11 @@ pub async fn receive_category_id(
     product.price = Some(price_u64);
     // product.stock = Some(stock_u64);
 
+    let chat_id = msg.chat.id.0.to_string();
+
     // فراخوانی سرویس ایجاد محصول
     let product_id =
-        match crate::services::product_service::create_product
-        (&product).await {
+        match crate::services::product_service::create_product(&product, chat_id).await {
         Ok(id) => id,
         Err(e) => {
             bot.send_message(msg.chat.id, format!("❌ خطا در ایجاد محصول: {e}"))
@@ -463,9 +486,11 @@ pub async fn receive_product_image(
     // یک نام فایل مناسب (از انتهای مسیر تلگرام)
     let filename = file_path.rsplit('/').next().unwrap_or("image.jpg");
 
+    let chat_id = msg.chat.id.0.to_string();
+
     // آپلود به بک‌اند
-    crate::services::product_image_service::upload_product_image_file
-        (product_id, filename, bytes).await?;
+    crate::services::product_image_service
+        ::upload_product_image_file(chat_id, product_id, filename, bytes).await?;
 
     // پیام نهایی به کاربر
     let summary = format!(
@@ -484,6 +509,11 @@ pub async fn receive_product_image(
     bot.send_photo(msg.chat.id, InputFile::file_id(file_id.clone()))
         .caption(caption)
         .await?;
+
+    let chat_id = msg.chat.id.0.to_string();
+
+    crate::utilities::site::remove_site(&chat_id);
+    crate::utilities::session::remove_session_by_chat(chat_id);
 
     // پایان جریان
     dialogue.update(State::Start).await?;

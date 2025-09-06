@@ -1,7 +1,8 @@
-use crate::utilities::session::set_session_multi;
+use crate::utilities::session::{set_session_by_chat, set_session_multi, ChatId};
 
 /// روند لاگین در ترب و ذخیره سشن های مربوط به کار با سرویس های ترب
 pub async fn login_in_torob(
+    chat_id: ChatId,
     user_name: &String,
     password: &String,
     origin: &str,
@@ -65,11 +66,12 @@ pub async fn login_in_torob(
         Ok(r) => r,
         Err(_) => return "request_error",
     };
+
     if (r.status().is_success() || r.status().is_redirection()) == false {
         return "http_error";
     }
 
-    set_session_multi(crate::utilities::session::SessionState { client, jar, base });
+    set_session_by_chat(chat_id, crate::utilities::session::SessionState { client, jar, base });
     
     "ok"
 }
