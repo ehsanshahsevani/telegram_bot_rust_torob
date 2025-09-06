@@ -1,10 +1,10 @@
 use teloxide::{dptree, Bot};
-use teloxide::dispatching::dialogue::InMemStorage;
-use teloxide::dispatching::{Dispatcher, HandlerExt, UpdateFilterExt};
-use teloxide::prelude::{Message, Requester, Update};
 use teloxide::requests::Request;
-use crate::telegram_infrastructure::models::command::Command;
+use teloxide::dispatching::dialogue::InMemStorage;
+use teloxide::prelude::{Message, Requester, Update};
 use crate::telegram_infrastructure::models::state::State;
+use crate::telegram_infrastructure::models::command::Command;
+use teloxide::dispatching::{Dispatcher, HandlerExt, UpdateFilterExt};
 
 pub type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
 

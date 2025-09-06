@@ -1,13 +1,13 @@
-use crate::services::models::category::Category;
-use crate::telegram_infrastructure::models::command::Command;
-use crate::telegram_infrastructure::models::state::State;
-use teloxide::dispatching::dialogue::InMemStorage;
-use teloxide::net::Download;
-use teloxide::payloads::SendPhotoSetters;
-use teloxide::prelude::{ChatId, Dialogue, Message};
-use teloxide::requests::Requester;
-use teloxide::types::InputFile;
 use teloxide::Bot;
+use teloxide::net::Download;
+use teloxide::types::InputFile;
+use teloxide::requests::Requester;
+use teloxide::payloads::SendPhotoSetters;
+use crate::services::models::category::Category;
+use teloxide::dispatching::dialogue::InMemStorage;
+use teloxide::prelude::{ChatId, Dialogue, Message};
+use crate::telegram_infrastructure::models::state::State;
+use crate::telegram_infrastructure::models::command::Command;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 pub type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
