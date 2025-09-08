@@ -261,7 +261,7 @@ pub async fn receive_price(
     // ⬇️ گرفتن و نمایش دسته‌بندی‌ها
     let cats: Vec<Category> =
         match crate::services::category_service::fetch_categories_from_service(
-            "/api/management/v1/categories/?page=1", chat_id).await {
+            "/api/management/v1/categories/?page=1", &chat_id).await {
             Ok(cats) => cats,
             Err(err) => {
                 bot.send_message(msg.chat.id, err.to_string()).await?;
@@ -367,7 +367,7 @@ pub async fn receive_category_id(
     // گرفتن تازه‌ترین لیست دسته‌بندی‌ها (یا اگر کش داری، از همان استفاده کن)
     let cats: Vec<Category> =
         match crate::services::category_service::fetch_categories_from_service(
-            "/api/management/v1/categories/?page=1", chat_id).await {
+            "/api/management/v1/categories/?page=1", &chat_id).await {
             Ok(v) => v,
             Err(e) => {
                 bot.send_message(msg.chat.id, format!("خطا در دریافت دسته‌بندی‌ها: {e}"))
@@ -412,7 +412,7 @@ pub async fn receive_category_id(
     product.price = Some(price_u64);
     // product.stock = Some(stock_u64);
 
-    let chat_id = msg.chat.id.0.to_string();
+    // let chat_id = msg.chat.id.0.to_string();
 
     // فراخوانی سرویس ایجاد محصول
     let product_id =
