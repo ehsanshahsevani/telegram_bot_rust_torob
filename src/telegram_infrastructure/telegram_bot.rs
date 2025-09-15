@@ -18,7 +18,7 @@ impl TelegramBot {
             bot: Bot::new(token),
         }
     }
-
+    
     pub async fn run_dispatcher(&self) -> HandlerResult
     {
         let bot_clone = self.bot.clone();
