@@ -11,25 +11,28 @@ pub async fn upload_product_image_file(
     use reqwest::header::{ACCEPT, ORIGIN, REFERER, USER_AGENT};
     use std::io;
 
-    let s = crate::utilities::session::session_by_chat(chat_id.clone()).ok_or_else(|| {
+    let session =
+        crate::utilities::session::session_by_chat(chat_id.clone()).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::Other,
             "no session; call login_in_torob first",
         )
     })?;
-    let csrf = crate::utilities::session::current_csrftoken(Some(chat_id.to_string()))
+
+    let csrf =
+        crate::utilities::session::current_csrftoken(Some(chat_id.to_string()))
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no csrftoken in jar; login first"))?;
 
     // POST /api/management/v1/products/{pk}/images/
-    let endpoint = s
+    let endpoint = session
         .base
         .join(&format!(
             "/api/management/v1/products/{}/images/",
             product_id
         ))?
         .to_string();
-    let referer = s.base.join("/admin/")?.to_string();
-    let origin = s.base.as_str().trim_end_matches('/').to_string();
+    let referer = session.base.join("/admin/")?.to_string();
+    let origin = session.base.as_str().trim_end_matches('/').to_string();
 
     // حدس ساده MIME از پسوند فایل (اختیاری اما مفید)
     let mime = match filename.to_ascii_lowercase().rsplit('.').next() {
@@ -46,7 +49,7 @@ pub async fn upload_product_image_file(
 
     let form = Form::new().part("image", image_part);
 
-    let resp = s
+    let resp = session
         .client
         .post(&endpoint)
         .header(ACCEPT, "application/json")

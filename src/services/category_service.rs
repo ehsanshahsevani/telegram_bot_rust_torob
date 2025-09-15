@@ -8,7 +8,7 @@ pub async fn fetch_categories_from_service(
     chat_id: &str,
 ) -> Result<Vec<Category>, Box<dyn serde::ser::StdError + Send + Sync + 'static>> {
     // این خط باید خطای Send+Sync بسازد:
-    let s =
+    let session =
         crate::utilities::session::session_by_chat(chat_id.to_string().clone()).ok_or_else(|| {
         std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -28,7 +28,7 @@ pub async fn fetch_categories_from_service(
     let mut out: Vec<Category> = Vec::new();
 
     loop {
-        let resp: reqwest::Response = s
+        let resp: reqwest::Response = session
             .client
             .get(&next_url)
             .header(ACCEPT, "application/json")
