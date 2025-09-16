@@ -155,7 +155,7 @@ pub async fn create_product_with_custom_auth()
 
     let product: ProductCreate = ProductCreate::new("کیف", 4);
 
-    let csrf = "lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8";
+    let token = "usf5bQUZPjYDVyrknB-Xy2a8j1BH1LwtTiqiM-j9aKCFOsXNO9zD_MDrYRjFZDnc";
 
     let endpoint = String::from("https://np.mixin.website/api/management/v1/products/");
     let referer = String::from("https://np.mixin.website/admin/");
@@ -163,15 +163,23 @@ pub async fn create_product_with_custom_auth()
 
     let http_client = reqwest::Client::new();
 
-    let resp = http_client
-        .post(&endpoint)
+    // فرم مولتی‌پارت طبق اسکیما:
+    let form = reqwest::multipart::Form::new()
+        .text("name", product.name.to_string())
+        .text("main_category", product.main_category.to_string());
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(endpoint)
+        // پاسخ JSON می‌خواهیم
         .header(ACCEPT, "application/json")
-        .header(CONTENT_TYPE, "application/json")
+        .header(USER_AGENT, "reqwest")
         .header(REFERER, &referer)
         .header(ORIGIN, &origin)
-        .header(USER_AGENT, "reqwest")
-        .header("X-CSRFToken", csrf)
-        .json(&product)
+        // ApiKeyAuth در هدر Authorization
+        .header(reqwest::header::AUTHORIZATION, format!("Api-Key {}", token))
+        // بدنه مولتی‌پارت
+        .multipart(form)
         .send()
         .await?;
 
