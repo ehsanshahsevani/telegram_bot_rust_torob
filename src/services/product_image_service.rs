@@ -43,20 +43,29 @@ pub async fn upload_product_image_file(
     };
 
     // فقط فیلد اجباری `image`
-    let image_part = Part::bytes(image_bytes)
+    let image_part =
+        Part::bytes(image_bytes)
         .file_name(filename.to_owned())
         .mime_str(mime)?;
 
     let form = Form::new().part("image", image_part);
 
-    let resp = session
-        .client
+    let token =
+        crate::utilities::token::get_token(chat_id).expect("no token");
+
+    if token.is_empty() {
+        return Err("no token".into());
+    }
+
+    let client = reqwest::Client::new();
+    
+    let resp = client
         .post(&endpoint)
         .header(ACCEPT, "application/json")
         .header(REFERER, &referer)
         .header(ORIGIN, &origin)
         .header(USER_AGENT, "reqwest")
-        .header("X-CSRFToken", csrf)
+        .header(reqwest::header::AUTHORIZATION, format!("Api-Key {}", token))
         .multipart(form)
         .send()
         .await?;

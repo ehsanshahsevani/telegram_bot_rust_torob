@@ -1,6 +1,5 @@
 use crate::services::models::product::ProductCreate;
 
-
 /// Box / Pin / Rc / Arc — فرق‌ها و کاربردها
 // Box<T>
 //
@@ -79,8 +78,6 @@ use crate::services::models::product::ProductCreate;
 //
 // Trait object لازم دارد پوینتر: Box<dyn Trait>, Rc<dyn Trait>, Arc<dyn Trait + Send + Sync>
 
-
-
 pub async fn create_product(
     product: &crate::services::models::product::ProductCreate,
     chat_id: String,
@@ -97,18 +94,49 @@ pub async fn create_product(
     let referer = s.base.join("/admin/")?.to_string();
     let origin = s.base.as_str().trim_end_matches('/').to_string();
 
-    let resp = s
-        .client
-        .post(&endpoint)
+    let price_string =
+        product.price.expect("REASON").to_string();
+
+    let token =
+        crate::utilities::token::get_token(chat_id).expect("no token");
+
+    if token.is_empty() {
+        return Err("no token".into());
+    }
+    
+    // فرم مولتی‌پارت طبق اسکیما:
+    let form= reqwest::multipart::Form::new()
+        .text("name", product.name.to_string())
+        .text("price", price_string)
+        .text("main_category", product.main_category.to_string());
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(endpoint)
+        // پاسخ JSON می‌خواهیم
         .header(ACCEPT, "application/json")
-        .header(CONTENT_TYPE, "application/json")
+        .header(USER_AGENT, "reqwest")
         .header(REFERER, &referer)
         .header(ORIGIN, &origin)
-        .header(USER_AGENT, "reqwest")
-        .header("X-CSRFToken", csrf)
-        .json(product)
+        // ApiKeyAuth در هدر Authorization
+        .header(reqwest::header::AUTHORIZATION, format!("Api-Key {}", token))
+        // بدنه مولتی‌پارت
+        .multipart(form)
         .send()
         .await?;
+
+    // let resp = s
+    //     .client
+    //     .post(&endpoint)
+    //     .header(ACCEPT, "application/json")
+    //     .header(CONTENT_TYPE, "application/json")
+    //     .header(REFERER, &referer)
+    //     .header(ORIGIN, &origin)
+    //     .header(USER_AGENT, "reqwest")
+    //     .header("X-CSRFToken", csrf)
+    //     .json(product)
+    //     .send()
+    //     .await?;
 
     let status = resp.status();
     let ct_hdr = resp
@@ -153,9 +181,9 @@ pub async fn create_product_with_custom_auth()
     -> Result<u64, Box<dyn std::error::Error + Send + Sync + 'static>> {
     use reqwest::header::{ACCEPT, CONTENT_TYPE, CONTENT_TYPE as CT, ORIGIN, REFERER, USER_AGENT};
 
-    let product: ProductCreate = ProductCreate::new("کیف", 4);
+    let product: ProductCreate = ProductCreate::new("کیف", 1);
 
-    let token = "usf5bQUZPjYDVyrknB-Xy2a8j1BH1LwtTiqiM-j9aKCFOsXNO9zD_MDrYRjFZDnc";
+    let token = "amOVvXAM6yzeqqJeFb1dWdEUn9cmBs19rAEzP-a3bZIHZiOviL-2y4pTJU2d08bF";
 
     let endpoint = String::from("https://np.mixin.website/api/management/v1/products/");
     let referer = String::from("https://np.mixin.website/admin/");

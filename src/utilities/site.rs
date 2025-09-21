@@ -11,7 +11,6 @@ use std::sync::{RwLock, OnceLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// مدیریت آدرس‌های مرتبط با شناسه‌ها
 pub static SITE: OnceLock<RwLock<HashMap<String, String>>> = OnceLock::new();
-
 /// فقط یک‌بار لاک را آماده می‌کنیم (داخل تابع)
 fn get_lock() -> &'static RwLock<HashMap<String, String>> {
     SITE.get_or_init(|| RwLock::new(HashMap::new()))
