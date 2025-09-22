@@ -5,10 +5,10 @@ pub enum State {
     Start,
 
     ReceiveWebSite,
-    ReceiveUserName,
-    ReceivePassword {
-        user_name: String,
-    },
+    ReceiveToken,
+    // ReceivePassword {
+    //     user_name: String,
+    // },
 
     /// منتظر دریافت نام محصول
     ReceiveProductName,

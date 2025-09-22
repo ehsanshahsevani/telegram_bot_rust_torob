@@ -36,16 +36,13 @@ impl TelegramBot {
                 )
                 .branch(dptree::case![State::ReceiveWebSite]
                     .endpoint(crate::telegram_infrastructure::endpoints::receive_website))
-                .branch(dptree::case![State::ReceiveUserName]
-                    .endpoint(crate::telegram_infrastructure::endpoints::receive_user_name))
-                .branch(dptree::case![State::ReceivePassword { user_name }]
-                    .endpoint(crate::telegram_infrastructure::endpoints::receive_password))
+                .branch(dptree::case![State::ReceiveToken]
+                    .endpoint(crate::telegram_infrastructure::endpoints::receive_token))
                 .branch(dptree::case![State::ReceiveProductName]
                     .endpoint(crate::telegram_infrastructure::endpoints::receive_name))
                 .branch(dptree::case![State::ReceivePrice { name }]
                     .endpoint(crate::telegram_infrastructure::endpoints::receive_price))
-                .branch(
-                    dptree::case![State::ReceiveCategoryId { name, price }]
+                .branch(dptree::case![State::ReceiveCategoryId { name, price }]
                         .endpoint(crate::telegram_infrastructure::endpoints::receive_category_id),
                 )
                 .branch(

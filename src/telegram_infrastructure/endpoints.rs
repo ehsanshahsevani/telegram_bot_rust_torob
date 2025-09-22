@@ -8,6 +8,10 @@ use teloxide::dispatching::dialogue::InMemStorage;
 use teloxide::prelude::{ChatId, Dialogue, Message};
 use crate::telegram_infrastructure::models::state::State;
 use crate::telegram_infrastructure::models::command::Command;
+use crate::telegram_infrastructure::models::state::State::ReceiveProductName;
+use crate::utilities::session::remove_session_by_chat;
+use crate::utilities::site::{get_site, remove_site};
+use crate::utilities::token::{get_token, remove_token, set_token};
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 pub type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
@@ -19,23 +23,49 @@ pub async fn start(bot: Bot, dialogue: MyDialogue, msg: Message, cmd: Command) -
         Command::Start => {
             bot.send_message(
                 msg.chat.id,
-                "سلام! برای ثبت محصول جدید /registerandcreatenewproduct را بفرست.\nهر زمان با /cancel انصراف بده.",
+                "سلام! برای ثبت محصول جدید /registerandcreatenewproduct را بفرست.\nبرای حذف اطلاعات قبلی و تغییر توکن از /changetoken استفاده کنید.\nهر زمان با /cancel انصراف بده.",
             )
                 .await?;
             dialogue.update(State::Start).await?;
         }
         Command::RegisterAndCreateNewproduct => {
-            bot.send_message(
-                msg.chat.id,
-                "برای ثبت محصول ابتدا آدرس پنل خود را ارسال کنید",
-            )
-                .await?;
-            dialogue.update(State::ReceiveWebSite).await?;
+
+            let mut message = "برای ثبت محصول ابتدا آدرس پنل خود را ارسال کنید";
+            let mut start_state = State::ReceiveWebSite;
+
+            let chat_id_telegram= msg.chat.id.0.to_string();
+
+            let site = get_site(&chat_id_telegram);
+            let token = get_token(&chat_id_telegram);
+
+            if site.is_some() && token.is_some() {
+                message = "نام محصول را وارد کنید";
+                start_state = State::ReceiveProductName;
+            }
+            else if site.is_some() && token.is_none() {
+                message = "توکن خود را وارد کنید";
+                start_state = State::ReceiveToken;
+            }
+            else {
+                remove_token(&chat_id_telegram);
+                remove_token(&chat_id_telegram);
+            }
+
+            bot.send_message(msg.chat.id, message,).await?;
+            dialogue.update(start_state).await?;
         }
         Command::Cancel => {
-            bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
-                .await?;
+            bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.").await?;
             dialogue.update(State::Start).await?;
+        }
+        Command::ChangeToken => {
+            let chat_id_telegram= msg.chat.id.0.to_string();
+
+            remove_token(&chat_id_telegram);
+            remove_token(&chat_id_telegram);
+
+            bot.send_message(msg.chat.id, "همه اطلاعات شما حذف شد، حالا آدرس پنل خود را وارد کنید").await?;
+            dialogue.update(State::ReceiveWebSite).await?;
         }
     }
     Ok(())
@@ -81,17 +111,17 @@ pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> Ha
 
     crate::utilities::site::set_site(chat_id_telegram.0.to_string(), website);
 
-    bot.send_message(msg.chat.id, "لطفا نام کاربری خود را وارد کنید").await?;
+    bot.send_message(msg.chat.id, "لطفا توکن خود را وارد کنید").await?;
 
-    dialogue.update(State::ReceiveUserName).await?;
+    dialogue.update(State::ReceiveToken).await?;
 
     Ok(())
 }
 
 /// دریافت نام کاربری از کاربر
-pub async fn receive_user_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
+pub async fn receive_token(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
     let Some(text) = msg.text() else {
-        bot.send_message(msg.chat.id, "نام کاربری خود را وارد کنید")
+        bot.send_message(msg.chat.id, "توکن خود را وارد کنید")
             .await?;
         return Ok(());
     };
@@ -108,15 +138,18 @@ pub async fn receive_user_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> 
     if user_name.is_empty() {
         bot.send_message(
             msg.chat.id,
-            "نام کاربری اجباری است و نمیتواند خالی باشد.",
+            "توکن شما اجباری است و نمیتواند خالی باشد.",
         )
             .await?;
         return Ok(());
     }
 
-    bot.send_message(msg.chat.id, "لطفا رمز عبور خود را وارد کنید").await?;
+    let chat_id = msg.chat.id.0.to_string();
 
-    dialogue.update(State::ReceivePassword { user_name: user_name }).await?;
+    set_token(chat_id, text.trim().to_string());
+
+    bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
+    dialogue.update(State::ReceiveProductName).await?;
 
     Ok(())
 }
@@ -151,16 +184,13 @@ pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user
 
     println!("chat_id_telegram = {}", chat_id_telegram);
 
-    let csrfmiddlewaretoken: String =
-        String::from("lz4DjzwH3Q6A6KvPFHRrRQuOQv0GWtrx6jZlqs4CnnwQTIpnxf98JQsyNHf953F8");
-
     let search_value_by_key =
         crate::utilities::site::get_site(&chat_id_telegram);
 
     match &search_value_by_key {
         Some(value) => {
             let result = crate::services::accounting::login_in_torob
-                (chat_id_telegram, &user_name, &password, value.as_str(), &csrfmiddlewaretoken).await;
+                (&chat_id_telegram, &user_name, &password, value.as_str()).await;
 
             println!("login result = {} with web: {}, user_name: {} & password: {}",
                      result, value, user_name, password);
@@ -177,7 +207,6 @@ pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user
             }
 
             bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
-
             dialogue.update(State::ReceiveProductName).await?;
         },
         None => {
@@ -511,9 +540,6 @@ pub async fn receive_product_image(
         .await?;
 
     let chat_id = msg.chat.id.0.to_string();
-
-    crate::utilities::site::remove_site(&chat_id);
-    crate::utilities::session::remove_session_by_chat(chat_id);
 
     // پایان جریان
     dialogue.update(State::Start).await?;

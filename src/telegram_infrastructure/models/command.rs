@@ -11,4 +11,7 @@ pub enum Command {
     /// انصراف از فرایند جاری
     #[command(description = "انصراف")]
     Cancel,
+    /// حذف اطلاعات اولیه
+    #[command(description = "حذف اطلاعات و تغییر توکن")]
+    ChangeToken,
 }

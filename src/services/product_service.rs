@@ -1,4 +1,5 @@
 use crate::services::models::product::ProductCreate;
+use crate::utilities::site::get_site;
 
 /// Box / Pin / Rc / Arc — فرق‌ها و کاربردها
 // Box<T>
@@ -82,17 +83,14 @@ pub async fn create_product(
     product: &crate::services::models::product::ProductCreate,
     chat_id: String,
 ) -> Result<u64, Box<dyn std::error::Error + Send + Sync + 'static>> {
+
     use reqwest::header::{ACCEPT, CONTENT_TYPE, CONTENT_TYPE as CT, ORIGIN, REFERER, USER_AGENT};
+    
+    let site = get_site(&chat_id).unwrap();
 
-    let s = crate::utilities::session::session_by_chat(chat_id.clone())
-        .ok_or("no session; call login_in_torob first")?;
-
-    let csrf = crate::utilities::session::current_csrftoken(Some(chat_id.to_string()))
-        .ok_or("no csrftoken in jar; login first")?;
-
-    let endpoint = s.base.join("/api/management/v1/products/")?.to_string();
-    let referer = s.base.join("/admin/")?.to_string();
-    let origin = s.base.as_str().trim_end_matches('/').to_string();
+    let endpoint = format!("{}/api/management/v1/products/", site);
+    let referer = format!("{}/admin/",site);
+    let origin = site.trim_end_matches('/').to_string();
 
     let price_string =
         product.price.expect("REASON").to_string();
@@ -111,6 +109,7 @@ pub async fn create_product(
         .text("main_category", product.main_category.to_string());
 
     let client = reqwest::Client::new();
+
     let resp = client
         .post(endpoint)
         // پاسخ JSON می‌خواهیم
@@ -124,19 +123,6 @@ pub async fn create_product(
         .multipart(form)
         .send()
         .await?;
-
-    // let resp = s
-    //     .client
-    //     .post(&endpoint)
-    //     .header(ACCEPT, "application/json")
-    //     .header(CONTENT_TYPE, "application/json")
-    //     .header(REFERER, &referer)
-    //     .header(ORIGIN, &origin)
-    //     .header(USER_AGENT, "reqwest")
-    //     .header("X-CSRFToken", csrf)
-    //     .json(product)
-    //     .send()
-    //     .await?;
 
     let status = resp.status();
     let ct_hdr = resp

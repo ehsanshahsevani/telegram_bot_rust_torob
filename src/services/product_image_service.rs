@@ -1,4 +1,7 @@
+use std::io;
+use reqwest::header::{ACCEPT, ORIGIN, REFERER, USER_AGENT};
 use reqwest::multipart::{Form, Part};
+use crate::utilities::site::get_site;
 
 /// آپلود تصویر محصول (فقط فیلد اجباری `image`)
 /// برمی‌گرداند: شناسهٔ تصویر (image_id)
@@ -8,31 +11,12 @@ pub async fn upload_product_image_file(
     filename: &str,
     image_bytes: Vec<u8>,
 ) -> Result<u64, Box<dyn std::error::Error + Send + Sync + 'static>> {
-    use reqwest::header::{ACCEPT, ORIGIN, REFERER, USER_AGENT};
-    use std::io;
-
-    let session =
-        crate::utilities::session::session_by_chat(chat_id.clone()).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            "no session; call login_in_torob first",
-        )
-    })?;
-
-    let csrf =
-        crate::utilities::session::current_csrftoken(Some(chat_id.to_string()))
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "no csrftoken in jar; login first"))?;
 
     // POST /api/management/v1/products/{pk}/images/
-    let endpoint = session
-        .base
-        .join(&format!(
-            "/api/management/v1/products/{}/images/",
-            product_id
-        ))?
-        .to_string();
-    let referer = session.base.join("/admin/")?.to_string();
-    let origin = session.base.as_str().trim_end_matches('/').to_string();
+    let site = get_site(&chat_id).unwrap();
+    let endpoint = format!("{}/api/management/v1/products/{}/images/", site, product_id);
+    let referer = format!("{}/admin/",site);
+    let origin = site.trim_end_matches('/').to_string();
 
     // حدس ساده MIME از پسوند فایل (اختیاری اما مفید)
     let mime = match filename.to_ascii_lowercase().rsplit('.').next() {
