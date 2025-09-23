@@ -1,5 +1,5 @@
-use crate::services::models::product::ProductCreate;
 use crate::utilities::site::get_site;
+use crate::services::models::product::ProductCreate;
 
 /// Box / Pin / Rc / Arc — فرق‌ها و کاربردها
 // Box<T>
@@ -85,7 +85,7 @@ pub async fn create_product(
 ) -> Result<u64, Box<dyn std::error::Error + Send + Sync + 'static>> {
 
     use reqwest::header::{ACCEPT, CONTENT_TYPE, CONTENT_TYPE as CT, ORIGIN, REFERER, USER_AGENT};
-    
+
     let site = get_site(&chat_id).unwrap();
 
     let endpoint = format!("{}/api/management/v1/products/", site);

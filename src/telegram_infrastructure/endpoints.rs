@@ -62,7 +62,7 @@ pub async fn start(bot: Bot, dialogue: MyDialogue, msg: Message, cmd: Command) -
             let chat_id_telegram= msg.chat.id.0.to_string();
 
             remove_token(&chat_id_telegram);
-            remove_token(&chat_id_telegram);
+            remove_site(&chat_id_telegram);
 
             bot.send_message(msg.chat.id, "همه اطلاعات شما حذف شد، حالا آدرس پنل خود را وارد کنید").await?;
             dialogue.update(State::ReceiveWebSite).await?;
