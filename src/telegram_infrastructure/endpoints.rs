@@ -98,10 +98,10 @@ pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> Ha
         return Ok(());
     }
 
-    if website.starts_with("http") && website.contains(".mixin.website") == false {
+    if website.starts_with("http"){
         bot.send_message(
             msg.chat.id,
-            "آدرس سایت باید شامل .mixin.website باشد؛ لطفاً دوباره تلاش کنید.",
+            "آدرس سایت شما نامعتبر میباشد",
         ).await?;
 
         return Ok(());
