@@ -24,7 +24,6 @@ fn get_lock() -> &'static RwLock<HashMap<String, String>> {
 
 /// تنظیم مقدار (هر بار قابل تغییر است)
 pub fn set_site<S: Into<String>>(key: S, value: S) {
-
     let mut w: RwLockWriteGuard<HashMap<String, String>> =
         get_lock().write().expect("SITE lock poisoned");
 
