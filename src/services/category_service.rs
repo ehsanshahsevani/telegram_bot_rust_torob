@@ -1,3 +1,4 @@
+use std::ascii::AsciiExt;
 use crate::services::models::category::Category;
 use crate::services::tools_method::value_to_category;
 use crate::utilities::site::get_site;
@@ -6,20 +7,20 @@ use reqwest::header::{ACCEPT, CONTENT_TYPE, ORIGIN, REFERER, USER_AGENT};
 use serde_json::Value;
 
 /// همهٔ صفحات را می‌خواند و فقط لیست Category برمی‌گرداند؛
-pub async fn fetch_categories_from_service(
-    start_path_or_url: &str,
-    chat_id: &str,
-) -> Result<Vec<Category>, Box<dyn serde::ser::StdError + Send + Sync + 'static>> {
-    let base = get_site(chat_id).unwrap();
+pub async fn fetch_categories_from_service(chat_id: &str)
+    -> Result<Vec<Category>, Box<dyn serde::ser::StdError + Send + Sync + 'static>> {
+    let base = get_site(chat_id).unwrap().trim_end_matches('/').to_string();
     let token = get_token(chat_id).unwrap();
 
-    let mut next_url: String = if start_path_or_url.starts_with("http") {
-        start_path_or_url.to_string()
-    } else {
-        format!("{base}{start_path_or_url}")
-    };
+    let mut start_path_or_url = format!("{}/api/management/v1/categories/?page=1", base);
 
-    let endpoint = next_url;
+    // let mut next_url: String = if start_path_or_url.starts_with("https") {
+    //     start_path_or_url.to_string()
+    // } else {
+    //     format!("{base}{start_path_or_url}")
+    // };
+
+    // let endpoint = start_path_or_url.clone();
     let referer = format!("{}/admin/", base);
     let origin = base.trim_end_matches('/').to_string();
 
@@ -29,7 +30,7 @@ pub async fn fetch_categories_from_service(
 
     loop {
         let resp: reqwest::Response = http_client
-            .get(&endpoint)
+            .get(&start_path_or_url)
             .header(REFERER, &referer)
             .header(ORIGIN, &origin)
             .header(ACCEPT, "application/json")
@@ -95,9 +96,15 @@ pub async fn fetch_categories_from_service(
 
         let root_next = root.get("next").and_then(|x| x.as_str());
 
+        if root_next.is_none() == false {
+            if start_path_or_url.eq_ignore_ascii_case(root_next.unwrap()) {
+                break;
+            }
+        }
+
         if let Some(nv) = root_next {
             if !nv.is_empty() {
-                next_url = if nv.starts_with("http") {
+                start_path_or_url = if nv.starts_with("https") {
                     nv.to_string()
                 } else {
                     format!("{base}{nv}")

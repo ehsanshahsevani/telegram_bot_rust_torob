@@ -98,10 +98,10 @@ pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> Ha
         return Ok(());
     }
 
-    if website.starts_with("http"){
+    if website.starts_with("https") == false {
         bot.send_message(
             msg.chat.id,
-            "آدرس سایت شما نامعتبر میباشد",
+            "آدرس سایت شما نامعتبر میباشد ادرس شما باید با https آغاز شود",
         ).await?;
 
         return Ok(());
@@ -109,7 +109,7 @@ pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> Ha
 
     let chat_id_telegram: ChatId = msg.chat.id;
 
-    crate::utilities::site::set_site(chat_id_telegram.0.to_string(), website);
+    crate::utilities::site::set_site(chat_id_telegram.0.to_string(), website.trim_end_matches('/').to_string());
 
     bot.send_message(msg.chat.id, "لطفا توکن خود را وارد کنید").await?;
 
@@ -289,8 +289,7 @@ pub async fn receive_price(
 
     // ⬇️ گرفتن و نمایش دسته‌بندی‌ها
     let cats: Vec<Category> =
-        match crate::services::category_service::fetch_categories_from_service(
-            "/api/management/v1/categories/?page=1", &chat_id).await {
+        match crate::services::category_service::fetch_categories_from_service(&chat_id).await {
             Ok(cats) => cats,
             Err(err) => {
                 bot.send_message(msg.chat.id, err.to_string()).await?;
@@ -310,8 +309,15 @@ pub async fn receive_price(
 
     // اگر خیلی بلند بود، تلگرام محدودیت 4096 کاراکتر دارد؛
     // برای سادگی فعلاً یک پیام می‌فرستیم:
-    bot.send_message(msg.chat.id, txt).await?;
+    // Replace the single message send with this implementation
+    let max_length = 4000; // Slightly less than Telegram's 4096 limit
+    let chunks = txt.chars().collect::<Vec<char>>().chunks(max_length)
+        .map(|c| c.iter().collect::<String>())
+        .collect::<Vec<String>>();
 
+    for chunk in chunks {
+        bot.send_message(msg.chat.id, chunk).await?;
+    }
     bot.send_message(msg.chat.id, "شناسه‌ی دسته‌بندی موردنظر را ارسال کنید.")
         .await?;
 
@@ -395,8 +401,7 @@ pub async fn receive_category_id(
 
     // گرفتن تازه‌ترین لیست دسته‌بندی‌ها (یا اگر کش داری، از همان استفاده کن)
     let cats: Vec<Category> =
-        match crate::services::category_service::fetch_categories_from_service(
-            "/api/management/v1/categories/?page=1", &chat_id).await {
+        match crate::services::category_service::fetch_categories_from_service(&chat_id).await {
             Ok(v) => v,
             Err(e) => {
                 bot.send_message(msg.chat.id, format!("خطا در دریافت دسته‌بندی‌ها: {e}"))

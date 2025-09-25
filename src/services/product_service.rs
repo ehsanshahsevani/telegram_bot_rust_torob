@@ -167,13 +167,13 @@ pub async fn create_product_with_custom_auth()
     -> Result<u64, Box<dyn std::error::Error + Send + Sync + 'static>> {
     use reqwest::header::{ACCEPT, CONTENT_TYPE, CONTENT_TYPE as CT, ORIGIN, REFERER, USER_AGENT};
 
-    let product: ProductCreate = ProductCreate::new("کیف", 1);
+    let product: ProductCreate = ProductCreate::new("تست محصول جدید", 72);
 
-    let token = "amOVvXAM6yzeqqJeFb1dWdEUn9cmBs19rAEzP-a3bZIHZiOviL-2y4pTJU2d08bF";
+    let token = "VpexCfgM3FtomndUjzCtyT0_qSfRzjEEXWhRdPQpu7pHuSr_eDBQGKah9mj5oB92";
 
-    let endpoint = String::from("https://np.mixin.website/api/management/v1/products/");
-    let referer = String::from("https://np.mixin.website/admin/");
-    let origin = String::from("https://np.mixin.website");
+    let endpoint = String::from("https://testmixin.ir/api/management/v1/products/");
+    let referer = String::from("https://testmixin.ir/admin/");
+    let origin = String::from("https://testmixin.ir/");
 
     let http_client = reqwest::Client::new();
 
@@ -244,7 +244,8 @@ mod test_create_product {
 
     #[tokio::test]
     async fn test_create_product_success() {
-        let result: Result<u64, Box<dyn Error + Send + Sync>> = create_product_with_custom_auth().await;
+        let result: Result<u64, Box<dyn Error + Send + Sync>> =
+            create_product_with_custom_auth().await;
         assert!(result.is_ok());
     }
 }
