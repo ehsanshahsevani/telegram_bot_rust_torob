@@ -1,21 +1,20 @@
-use teloxide::Bot;
-use teloxide::net::Download;
-use teloxide::types::InputFile;
-use teloxide::requests::Requester;
-use teloxide::payloads::SendPhotoSetters;
 use crate::services::models::category::Category;
-use teloxide::dispatching::dialogue::InMemStorage;
-use teloxide::prelude::{ChatId, Dialogue, Message};
-use crate::telegram_infrastructure::models::state::State;
 use crate::telegram_infrastructure::models::command::Command;
+use crate::telegram_infrastructure::models::state::State;
 use crate::telegram_infrastructure::models::state::State::ReceiveProductName;
 use crate::utilities::session::remove_session_by_chat;
 use crate::utilities::site::{get_site, remove_site};
 use crate::utilities::token::{get_token, remove_token, set_token};
+use teloxide::Bot;
+use teloxide::dispatching::dialogue::InMemStorage;
+use teloxide::net::Download;
+use teloxide::payloads::SendPhotoSetters;
+use teloxide::prelude::{ChatId, Dialogue, Message};
+use teloxide::requests::Requester;
+use teloxide::types::InputFile;
 
 type MyDialogue = Dialogue<State, InMemStorage<State>>;
 pub type HandlerResult = Result<(), Box<dyn std::error::Error + Send + Sync + 'static>>;
-
 
 /// کاربر اگر ربات را استارت کند اتفاقات این تابع ران میشود
 pub async fn start(bot: Bot, dialogue: MyDialogue, msg: Message, cmd: Command) -> HandlerResult {
@@ -29,11 +28,10 @@ pub async fn start(bot: Bot, dialogue: MyDialogue, msg: Message, cmd: Command) -
             dialogue.update(State::Start).await?;
         }
         Command::RegisterAndCreateNewproduct => {
-
             let mut message = "برای ثبت محصول ابتدا آدرس پنل خود را ارسال کنید";
             let mut start_state = State::ReceiveWebSite;
 
-            let chat_id_telegram= msg.chat.id.0.to_string();
+            let chat_id_telegram = msg.chat.id.0.to_string();
 
             let site = get_site(&chat_id_telegram);
             let token = get_token(&chat_id_telegram);
@@ -41,36 +39,38 @@ pub async fn start(bot: Bot, dialogue: MyDialogue, msg: Message, cmd: Command) -
             if site.is_some() && token.is_some() {
                 message = "نام محصول را وارد کنید";
                 start_state = State::ReceiveProductName;
-            }
-            else if site.is_some() && token.is_none() {
+            } else if site.is_some() && token.is_none() {
                 message = "توکن خود را وارد کنید";
                 start_state = State::ReceiveToken;
-            }
-            else {
+            } else {
                 remove_token(&chat_id_telegram);
                 remove_token(&chat_id_telegram);
             }
 
-            bot.send_message(msg.chat.id, message,).await?;
+            bot.send_message(msg.chat.id, message).await?;
             dialogue.update(start_state).await?;
         }
         Command::Cancel => {
-            bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.").await?;
+            bot.send_message(msg.chat.id, "روند ایجاد محصول کنسل شد.")
+                .await?;
             dialogue.update(State::Start).await?;
         }
         Command::ChangeToken => {
-            let chat_id_telegram= msg.chat.id.0.to_string();
+            let chat_id_telegram = msg.chat.id.0.to_string();
 
             remove_token(&chat_id_telegram);
             remove_site(&chat_id_telegram);
 
-            bot.send_message(msg.chat.id, "همه اطلاعات شما حذف شد، حالا آدرس پنل خود را وارد کنید").await?;
+            bot.send_message(
+                msg.chat.id,
+                "همه اطلاعات شما حذف شد، حالا آدرس پنل خود را وارد کنید",
+            )
+            .await?;
             dialogue.update(State::ReceiveWebSite).await?;
         }
     }
     Ok(())
 }
-
 
 ///دریافت آدرس پنل کاربر
 pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> HandlerResult {
@@ -94,7 +94,7 @@ pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> Ha
             msg.chat.id,
             "آدرس خالی است؛ لطفاً دوباره ادرس سایت خود را وارد کنید.",
         )
-            .await?;
+        .await?;
         return Ok(());
     }
 
@@ -102,17 +102,20 @@ pub async fn receive_website(bot: Bot, dialogue: MyDialogue, msg: Message) -> Ha
         bot.send_message(
             msg.chat.id,
             "آدرس سایت شما نامعتبر میباشد ادرس شما باید با https آغاز شود",
-        ).await?;
+        )
+        .await?;
 
         return Ok(());
     }
 
     let chat_id_telegram: ChatId = msg.chat.id;
 
-    crate::utilities::site::set_site(chat_id_telegram.0.to_string(), website.trim_end_matches('/').to_string());
+    crate::utilities::site::set_site(
+        chat_id_telegram.0.to_string(),
+        website.trim_end_matches('/').to_string(),
+    );
 
     bot.send_message(msg.chat.id, "لطفا توکن خود را وارد کنید").await?;
-
     dialogue.update(State::ReceiveToken).await?;
 
     Ok(())
@@ -136,10 +139,7 @@ pub async fn receive_token(bot: Bot, dialogue: MyDialogue, msg: Message) -> Hand
     let user_name = text.trim().to_string();
 
     if user_name.is_empty() {
-        bot.send_message(
-            msg.chat.id,
-            "توکن شما اجباری است و نمیتواند خالی باشد.",
-        )
+        bot.send_message(msg.chat.id, "توکن شما اجباری است و نمیتواند خالی باشد.")
             .await?;
         return Ok(());
     }
@@ -148,14 +148,20 @@ pub async fn receive_token(bot: Bot, dialogue: MyDialogue, msg: Message) -> Hand
 
     set_token(chat_id, text.trim().to_string());
 
-    bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
+    bot.send_message(msg.chat.id, "نام محصول را وارد کنید")
+        .await?;
     dialogue.update(State::ReceiveProductName).await?;
 
     Ok(())
 }
 
 /// دریافت رمز عبور برای ورود به پنل ادمین ترب
-pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user_name: String) -> HandlerResult {
+pub async fn receive_password(
+    bot: Bot,
+    dialogue: MyDialogue,
+    msg: Message,
+    user_name: String,
+) -> HandlerResult {
     let Some(text) = msg.text() else {
         bot.send_message(msg.chat.id, "رمز عبور خود را وارد کنید")
             .await?;
@@ -172,10 +178,7 @@ pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user
     let password = text.trim().to_string();
 
     if password.is_empty() {
-        bot.send_message(
-            msg.chat.id,
-            "رمز عبور اجباری است و نمیتواند خالی باشد.",
-        )
+        bot.send_message(msg.chat.id, "رمز عبور اجباری است و نمیتواند خالی باشد.")
             .await?;
         return Ok(());
     }
@@ -184,16 +187,22 @@ pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user
 
     println!("chat_id_telegram = {}", chat_id_telegram);
 
-    let search_value_by_key =
-        crate::utilities::site::get_site(&chat_id_telegram);
+    let search_value_by_key = crate::utilities::site::get_site(&chat_id_telegram);
 
     match &search_value_by_key {
         Some(value) => {
-            let result = crate::services::accounting::login_in_torob
-                (&chat_id_telegram, &user_name, &password, value.as_str()).await;
+            let result = crate::services::accounting::login_in_torob(
+                &chat_id_telegram,
+                &user_name,
+                &password,
+                value.as_str(),
+            )
+            .await;
 
-            println!("login result = {} with web: {}, user_name: {} & password: {}",
-                     result, value, user_name, password);
+            println!(
+                "login result = {} with web: {}, user_name: {} & password: {}",
+                result, value, user_name, password
+            );
 
             let result_bool = match result {
                 "ok" => true,
@@ -206,12 +215,20 @@ pub async fn receive_password(bot: Bot, dialogue: MyDialogue, msg: Message, user
                 return Ok(());
             }
 
-            bot.send_message(msg.chat.id, "نام محصول را وارد کنید").await?;
+            bot.send_message(msg.chat.id, "نام محصول را وارد کنید")
+                .await?;
             dialogue.update(State::ReceiveProductName).await?;
-        },
+        }
         None => {
-            println!("web site value for this chat id {}, not found.", chat_id_telegram);
-            bot.send_message(msg.chat.id, "آدرس سایت شما یافت نشد لطفا آدرس سایت خود را وارد کنید").await?;
+            println!(
+                "web site value for this chat id {}, not found.",
+                chat_id_telegram
+            );
+            bot.send_message(
+                msg.chat.id,
+                "آدرس سایت شما یافت نشد لطفا آدرس سایت خود را وارد کنید",
+            )
+            .await?;
             dialogue.update(State::Start).await?;
             return Ok(());
         }
@@ -242,7 +259,7 @@ pub async fn receive_name(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
             msg.chat.id,
             "نام خالی است؛ لطفاً دوباره نام محصول را وارد کنید.",
         )
-            .await?;
+        .await?;
         return Ok(());
     }
 
@@ -280,7 +297,7 @@ pub async fn receive_price(
             msg.chat.id,
             "قیمت نامعتبر است؛ فقط عدد وارد کنید (مثلاً 250000).",
         )
-            .await?;
+        .await?;
 
         return Ok(());
     };
@@ -294,8 +311,8 @@ pub async fn receive_price(
             Err(err) => {
                 bot.send_message(msg.chat.id, err.to_string()).await?;
                 eprintln!("error in fetching categories: {}", err.to_string());
-                return Err(err.into())
-            },
+                return Err(err.into());
+            }
         };
 
     if cats.is_empty() {
@@ -311,7 +328,10 @@ pub async fn receive_price(
     // برای سادگی فعلاً یک پیام می‌فرستیم:
     // Replace the single message send with this implementation
     let max_length = 4000; // Slightly less than Telegram's 4096 limit
-    let chunks = txt.chars().collect::<Vec<char>>().chunks(max_length)
+    let chunks = txt
+        .chars()
+        .collect::<Vec<char>>()
+        .chunks(max_length)
         .map(|c| c.iter().collect::<String>())
         .collect::<Vec<String>>();
 
@@ -416,7 +436,7 @@ pub async fn receive_category_id(
             msg.chat.id,
             "چنین شناسه‌ای در دسته‌بندی‌ها وجود ندارد؛ دوباره تلاش کنید.",
         )
-            .await?;
+        .await?;
         return Ok(());
     };
 
@@ -425,7 +445,7 @@ pub async fn receive_category_id(
             msg.chat.id,
             "این دسته‌بندی فعال نیست؛ شناسه‌ی دیگری انتخاب کنید.",
         )
-            .await?;
+        .await?;
         return Ok(());
     }
 
@@ -440,8 +460,7 @@ pub async fn receive_category_id(
         }
     };
 
-    let mut product =
-        crate::services::models::product::ProductCreate::new(name.clone(), cat.id);
+    let mut product = crate::services::models::product::ProductCreate::new(name.clone(), cat.id);
     // اگر نوع فیلدها در ProductCreate، i64 است، همین دو خط را به Some(price) / Some(stock) تغییر بده.
     product.price = Some(price_u64);
     // product.stock = Some(stock_u64);
@@ -449,8 +468,8 @@ pub async fn receive_category_id(
     // let chat_id = msg.chat.id.0.to_string();
 
     // فراخوانی سرویس ایجاد محصول
-    let product_id =
-        match crate::services::product_service::create_product(&product, chat_id).await {
+    let product_id = match crate::services::product_service::create_product(&product, chat_id).await
+    {
         Ok(id) => id,
         Err(e) => {
             bot.send_message(msg.chat.id, format!("❌ خطا در ایجاد محصول: {e}"))
@@ -510,7 +529,32 @@ pub async fn receive_product_image(
     let largest_photo = photo.iter().last().unwrap();
     let file_id = largest_photo.file.id.clone();
     let file = bot.get_file(&file_id).await?;
-    let file_path = file.path;
+    let file_path = &file.path;
+
+    let chat_id = msg.chat.id.0.to_string();
+
+    if file.size > 2 * 1024 * 1024 {
+        bot.send_message(msg.chat.id, "❌ حجم تصویر باید کمتر از 2 مگابایت باشد.").await?;
+        return Ok(());
+    }
+
+    // بررسی پسوند مجاز
+    let allowed_exts = ["jpg", "jpeg", "png", "gif", "webp"];
+    let filename = file_path.rsplit('/').next().unwrap_or("image.jpg");
+    let ext_ok = filename
+        .rsplit('.')
+        .next()
+        .map(|ext| allowed_exts.contains(&ext.to_lowercase().as_str()))
+        .unwrap_or(false);
+
+    if !ext_ok {
+        bot.send_message(
+            msg.chat.id,
+            format!("❌ فرمت فایل پشتیبانی نمی‌شود. فرمت‌های مجاز: {:?}", allowed_exts),
+        )
+            .await?;
+        return Ok(());
+    }
 
     // ارسال تصویر به مقصد (سایت)
     // دانلود بایت‌ها از تلگرام
@@ -520,11 +564,11 @@ pub async fn receive_product_image(
     // یک نام فایل مناسب (از انتهای مسیر تلگرام)
     let filename = file_path.rsplit('/').next().unwrap_or("image.jpg");
 
-    let chat_id = msg.chat.id.0.to_string();
-
     // آپلود به بک‌اند
-    crate::services::product_image_service
-        ::upload_product_image_file(chat_id, product_id, filename, bytes).await?;
+    crate::services::product_image_service::upload_product_image_file(
+        chat_id, product_id, filename, bytes,
+    )
+    .await?;
 
     // پیام نهایی به کاربر
     let summary = format!(
@@ -550,3 +594,4 @@ pub async fn receive_product_image(
     dialogue.update(State::Start).await?;
     Ok(())
 }
+
