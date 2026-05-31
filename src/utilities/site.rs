@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::sync::{RwLock, OnceLock, RwLockReadGuard, RwLockWriteGuard};
 
 ///OnceLock: «فقط یک‌بار بسازش، بعداً همان را بده»
-//
+
 // RwLock: «چندتا خواننده همزمان OK؛ ولی نویسنده باید تنها باشد»
-//
+
 // HashMap: «دفترچهٔ کلید→مقدار»
-//
+
 // 'static: «تا آخر برنامه زنده است»
 
 /// TODO :
